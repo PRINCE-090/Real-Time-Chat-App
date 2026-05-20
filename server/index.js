@@ -2,28 +2,63 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
+
 import authRoutes from "./routes/authRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 dotenv.config();
 connectDB();
 
 const app = express();
 
-app.use(express.json());
-app.use("/api/messages", messageRoutes);
-app.use("/api/auth", authRoutes);
-// middleware
 app.use(cors());
+app.use(express.json());
 
-// test route
+app.use("/api/auth", authRoutes);
+app.use("/api/messages", messageRoutes);
+
 app.get("/", (req, res) => {
-  res.send("API is running...");
+  res.send("API running...");
+});
+
+// HTTP server create
+const server = createServer(app);
+
+// SOCKET SERVER
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  },
+});
+
+// SOCKET CONNECTION
+io.on("connection", (socket) => {
+  console.log("User Connected:", socket.id);
+
+  // JOIN ROOM
+  socket.on("join_room", (userId) => {
+    socket.join(userId);
+    console.log(`User joined room: ${userId}`);
+  });
+
+  // SEND MESSAGE
+  socket.on("send_message", (data) => {
+    const { receiverId } = data;
+
+    io.to(receiverId).emit("receive_message", data);
+  });
+
+  // DISCONNECT
+  socket.on("disconnect", () => {
+    console.log("User Disconnected:", socket.id);
+  });
 });
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
