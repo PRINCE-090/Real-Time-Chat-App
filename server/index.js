@@ -8,6 +8,7 @@ import messageRoutes from "./routes/messageRoutes.js";
 
 import { createServer } from "http";
 import { Server } from "socket.io";
+const onlineUsers = {};
 
 dotenv.config();
 connectDB();
@@ -43,6 +44,16 @@ io.on("connection", (socket) => {
     socket.join(userId);
     console.log(`User joined room: ${userId}`);
   });
+   socket.on("user_online", (userId) => {
+
+  onlineUsers[userId] = socket.id;
+
+  io.emit(
+    "online_users",
+    Object.keys(onlineUsers)
+  );
+
+});
 
   // SEND MESSAGE
   socket.on("send_message", (data) => {
@@ -52,9 +63,27 @@ io.on("connection", (socket) => {
   });
 
   // DISCONNECT
-  socket.on("disconnect", () => {
-    console.log("User Disconnected:", socket.id);
-  });
+ socket.on("disconnect", () => {
+
+  console.log("User Disconnected:", socket.id);
+
+  for (const userId in onlineUsers) {
+
+    if (onlineUsers[userId] === socket.id) {
+
+      delete onlineUsers[userId];
+
+      break;
+
+    }
+  }
+
+  io.emit(
+    "online_users",
+    Object.keys(onlineUsers)
+  );
+
+});
 });
 
 const PORT = process.env.PORT || 5000;
