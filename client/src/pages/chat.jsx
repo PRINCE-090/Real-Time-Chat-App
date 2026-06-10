@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+
 
 const socket = io("http://localhost:5000");
 
@@ -13,6 +14,8 @@ function Chat() {
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
   const [receiverId, setReceiverId] = useState("");
+  const [typingUser, setTypingUser] = useState("");
+  const messagesEndRef = useRef(null);
 
   const user = JSON.parse(localStorage.getItem("user"));
 
@@ -33,13 +36,9 @@ function Chat() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await axios.get(
-          "http://localhost:5000/api/auth/users"
-        );
+        const res = await axios.get("http://localhost:5000/api/auth/users");
 
-        const filteredUsers = res.data.filter(
-          (u) => u._id !== senderId
-        );
+        const filteredUsers = res.data.filter((u) => u._id !== senderId);
 
         setUsers(filteredUsers);
       } catch (error) {
@@ -57,7 +56,7 @@ function Chat() {
     const fetchMessages = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:5000/api/messages/${senderId}/${receiverId}`
+          `http://localhost:5000/api/messages/${senderId}/${receiverId}`,
         );
 
         setMessages(res.data);
@@ -82,16 +81,32 @@ function Chat() {
     socket.on("online_users", (users) => {
       console.log("ONLINE USERS RECEIVED:", users);
 
-      setOnlineUsers(
-        users.map((id) => String(id))
-      );
+      setOnlineUsers(users.map((id) => String(id)));
     });
+
+    socket.on("user_typing", (data) => {
+      setTypingUser(data.senderName);
+
+      setTimeout(() => {
+        setTypingUser("");
+      }, 2000);
+    });
+    
 
     return () => {
       socket.off("receive_message");
       socket.off("online_users");
+      socket.off("user_typing");
     };
   }, [senderId]);
+
+  useEffect(() => {
+
+  messagesEndRef.current?.scrollIntoView({
+    behavior: "smooth",
+  });
+
+}, [messages]);
 
   // SEND MESSAGE
   const sendMessage = async () => {
@@ -109,10 +124,7 @@ function Chat() {
     };
 
     try {
-      await axios.post(
-        "http://localhost:5000/api/messages/send",
-        messageData
-      );
+      await axios.post("http://localhost:5000/api/messages/send", messageData);
 
       socket.emit("send_message", messageData);
 
@@ -125,91 +137,139 @@ function Chat() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Real-Time Chat App</h1>
-
-      <button
-        onClick={logout}
-        style={{
-          marginBottom: "15px",
-        }}
-      >
-        Logout
-      </button>
-
+      <div className="h-screen bg-gray-100 flex">
       {/* USERS LIST */}
+      <div className="w-1/4 bg-white border-r flex flex-col">
+
+  <div className="p-4 bg-green-600 text-white flex justify-between items-center">
+
+    <h2 className="font-bold text-lg">
+      Chats
+    </h2>
+
+    <button
+      onClick={logout}
+      className="bg-red-500 px-3 py-1 rounded"
+    >
+      Logout
+    </button>
+
+  </div>
+
+  <div className="flex-1 overflow-y-auto">
+
+    {users.map((u) => (
+
       <div
-        style={{
-          border: "1px solid gray",
-          padding: "10px",
-          marginBottom: "20px",
-        }}
+        key={u._id}
+        onClick={() => setReceiverId(u._id)}
+        className={`p-4 cursor-pointer border-b hover:bg-gray-100 ${
+          receiverId === u._id
+            ? "bg-green-100"
+            : ""
+        }`}
       >
-        <h3>Users</h3>
 
-        {users.map((u) => (
-          <div
-            key={u._id}
-            onClick={() => setReceiverId(u._id)}
-            style={{
-              cursor: "pointer",
-              padding: "8px",
-              marginBottom: "5px",
-              borderRadius: "5px",
-              background:
-                receiverId === u._id
-                  ? "#ddd"
-                  : "#f5f5f5",
-            }}
-          >
-            {onlineUsers.includes(
-              String(u._id)
-            )
-              ? "🟢 "
-              : "⚫ "}
+        <div className="font-semibold">
 
-            {u.name}
-          </div>
-        ))}
+          {onlineUsers.includes(String(u._id))
+            ? "🟢 "
+            : "⚫ "}
+
+          {u.name}
+
+        </div>
+
       </div>
+
+    ))}
+
+  </div>
+
+</div>
 
       {/* CHAT BOX */}
+    {/* CHAT AREA */}
+<div className="flex-1 flex flex-col">
+
+  {/* Header */}
+  <div className="bg-green-600 text-white p-4 font-bold">
+    {receiverId ? "Chat" : "Select a User"}
+  </div>
+
+  {/* Messages */}
+  <div className="flex-1 overflow-y-auto p-4">
+
+    {messages.map((msg, index) => (
+
       <div
-        style={{
-          border: "1px solid gray",
-          height: "300px",
-          overflowY: "scroll",
-          padding: "10px",
-          marginBottom: "10px",
-        }}
+        key={index}
+        className={`mb-3 flex ${
+          String(msg.senderId) === String(senderId)
+            ? "justify-end"
+            : "justify-start"
+        }`}
       >
-        {messages.map((msg, index) => (
-          <p key={index}>
-            <strong>
-              {String(msg.senderId) ===
-              String(senderId)
-                ? "You"
-                : "Other"}
-            </strong>
-            : {msg.message}
-          </p>
-        ))}
+        <div
+          className={`px-4 py-2 rounded-lg max-w-xs ${
+            String(msg.senderId) === String(senderId)
+              ? "bg-green-500 text-white"
+              : "bg-white border"
+          }`}
+        >
+          {msg.message}
+        </div>
       </div>
 
-      <input
-        type="text"
-        placeholder="Enter message"
-        value={message}
-        onChange={(e) =>
-          setMessage(e.target.value)
-        }
-      />
+    ))}
 
-      <button onClick={sendMessage}>
-        Send
-      </button>
+    <div ref={messagesEndRef}></div>
+
+  </div>
+
+  {/* Typing */}
+  {typingUser && (
+    <div className="px-4 py-2 text-green-600 italic">
+      {typingUser} is typing...
     </div>
-  );
+  )}
+
+  {/* Input */}
+  <div className="p-4 bg-white border-t flex gap-2">
+
+    <input
+      type="text"
+      placeholder="Type a message..."
+      value={message}
+      onChange={(e) => {
+
+        setMessage(e.target.value);
+
+        if (receiverId) {
+
+          socket.emit("typing", {
+            receiverId,
+            senderName: user.name,
+          });
+
+        }
+
+      }}
+      className="flex-1 border rounded-lg px-4 py-2"
+    />
+
+    <button
+      onClick={sendMessage}
+      className="bg-green-600 text-white px-6 py-2 rounded-lg"
+    >
+      Send
+    </button>
+    </div>
+
+  </div>
+
+</div>
+);
 }
 
 export default Chat;
