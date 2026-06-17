@@ -61,6 +61,7 @@ io.on("connection", (socket) => {
 
     io.to(receiverId).emit("receive_message", data);
   });
+  
   socket.on("typing", (data) => {
 
   const { receiverId, senderName } = data;
@@ -70,6 +71,7 @@ io.on("connection", (socket) => {
   });
 
 });
+
 
   // DISCONNECT
  socket.on("disconnect", () => {

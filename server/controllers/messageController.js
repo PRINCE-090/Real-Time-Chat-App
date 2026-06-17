@@ -8,6 +8,7 @@ export const sendMessage = async (req, res) => {
     senderId,
     receiverId,
     message,
+    status: "sent",
   });
 
   res.json(newMessage);
@@ -25,4 +26,27 @@ export const getMessages = async (req, res) => {
   }).sort({ createdAt: 1 });
 
   res.json(messages);
+};
+export const markAsDelivered = async (req, res) => {
+
+  const { messageId } = req.params;
+
+  try {
+
+    const message = await Message.findByIdAndUpdate(
+      messageId,
+      { status: "delivered" },
+      { new: true }
+    );
+
+    res.json(message);
+
+  } catch (error) {
+
+    res.status(500).json({
+      message: error.message,
+    });
+
+  }
+
 };
